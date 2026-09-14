@@ -28,4 +28,4 @@ npm run blender:check
 
 ## โมเดลโฆษณา
 
-ชุดโมเดลจริงที่สร้างผ่าน Blender MCP อยู่ใน [advertisement/README.md](advertisement/README.md) พร้อม .blend, GLB และภาพตัวอย่าง; การเรนเดอร์ MP4 หยุดตามคำขอให้อัปโหลดเฉพาะงานที่มี
+ชุดโมเดลจริงที่สร้างผ่าน Blender MCP อยู่ใน [advertisement/README.md](advertisement/README.md) พร้อม .blend, GLB และภาพตัวอย่าง; ชุดวิดีโอพรีเมียมใหม่และคำสั่งเรนเดอร์อยู่ใน [premium/README.md](advertisement/premium/README.md)

@@ -15,3 +15,8 @@ graft/
 __pycache__/
 blender/advertisement/*-log.txt
 blender/advertisement/frames/
+
+# Reproducible premium film: keep final media, omit intermediate renders.
+blender/advertisement/premium/frames/
+blender/advertisement/premium/preview-*.png
+blender/advertisement/premium/eevee-check.png

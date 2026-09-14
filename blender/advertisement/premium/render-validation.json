@@ -1,0 +1,93 @@
+{
+  "status": "PASS",
+  "frames": 384,
+  "fps": 24,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "camera_cuts_checked": 384,
+  "full_product_bounds_checked": 288,
+  "samples": [
+    {
+      "frame": 1,
+      "camera": "01 / SILHOUETTE"
+    },
+    {
+      "frame": 24,
+      "camera": "01 / SILHOUETTE"
+    },
+    {
+      "frame": 48,
+      "camera": "01 / SILHOUETTE"
+    },
+    {
+      "frame": 72,
+      "camera": "01 / SILHOUETTE"
+    },
+    {
+      "frame": 96,
+      "camera": "01 / SILHOUETTE"
+    },
+    {
+      "frame": 97,
+      "camera": "02 / CAMERA DETAIL"
+    },
+    {
+      "frame": 120,
+      "camera": "02 / CAMERA DETAIL"
+    },
+    {
+      "frame": 144,
+      "camera": "02 / CAMERA DETAIL"
+    },
+    {
+      "frame": 168,
+      "camera": "02 / CAMERA DETAIL"
+    },
+    {
+      "frame": 192,
+      "camera": "02 / CAMERA DETAIL"
+    },
+    {
+      "frame": 193,
+      "camera": "03 / EVERY ANGLE"
+    },
+    {
+      "frame": 216,
+      "camera": "03 / EVERY ANGLE"
+    },
+    {
+      "frame": 240,
+      "camera": "03 / EVERY ANGLE"
+    },
+    {
+      "frame": 264,
+      "camera": "03 / EVERY ANGLE"
+    },
+    {
+      "frame": 288,
+      "camera": "03 / EVERY ANGLE"
+    },
+    {
+      "frame": 289,
+      "camera": "04 / THE COGNAC EDIT"
+    },
+    {
+      "frame": 312,
+      "camera": "04 / THE COGNAC EDIT"
+    },
+    {
+      "frame": 336,
+      "camera": "04 / THE COGNAC EDIT"
+    },
+    {
+      "frame": 360,
+      "camera": "04 / THE COGNAC EDIT"
+    },
+    {
+      "frame": 384,
+      "camera": "04 / THE COGNAC EDIT"
+    }
+  ]
+}

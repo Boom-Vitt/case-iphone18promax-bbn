@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "video": "iphone18-pro-max-premium.mp4",
+  "duration_seconds": 16,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "fps": 24,
+  "unique_source_frames": 384,
+  "decoded_frames": 384,
+  "audio": "Original procedural ambient score, stereo AAC 48kHz",
+  "unmastered_audio_peak": 0.131972179552515,
+  "sha256": "c6fe014777ae46b6fbdcd3ef14f88c2b705997cff1e55208f1f9c3f8d0baf6a9",
+  "bytes": 6314213,
+  "decode": "FFmpeg full decode passed"
+}
