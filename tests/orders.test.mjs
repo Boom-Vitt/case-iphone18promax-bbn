@@ -52,6 +52,8 @@ test('preorder lifecycle, private slips, validation, persistence, and retryable 
     assert.equal(created.status,201);const order=await created.json();assert.equal(order.total,2180);
     await settle();
     assert.equal(app.db.prepare('SELECT synced_revision FROM orders').get().synced_revision,0);
+    assert.equal((await request('/api/admin/sync','POST',{})).status,502);
+    assert.match((await (await request('/api/admin/dashboard')).json()).syncError,/Google/);
     assert.equal(received.order.lookup,undefined);assert.equal(received.order.slip_path,undefined);
     assert.equal((await request('/api/orders','POST',form())).status,409);
     assert.equal((await request('/api/order-status','POST',{id:order.id,token:'wrong'})).status,404);
@@ -66,6 +68,7 @@ test('preorder lifecycle, private slips, validation, persistence, and retryable 
     acceptSync=true;await app.syncOrders();
     assert.equal(app.db.prepare('SELECT synced_revision FROM orders').get().synced_revision,2);
     assert.equal(received.order.status,'approved');
+    const sync=await (await request('/api/admin/sync','POST',{})).json();assert.equal(sync.ok,true);assert.equal(sync.pending,0);
     const dashboard=await (await request('/api/admin/dashboard')).json();assert.equal(dashboard.totals.approvedRevenue,2180);assert.equal(dashboard.totals.unsynced,0);
     await new Promise(r=>app.server.close(r));
     app=createApp(options);app.server.listen(0,'127.0.0.1');await once(app.server,'listening');base=`http://127.0.0.1:${app.server.address().port}`;
@@ -113,6 +116,7 @@ test('20 per design: concurrent reservations, rejection release, reapproval guar
     await start();
     const initial=await catalog(); assert.equal(initial.products.length,12);assert.ok(initial.products.every(p=>p.stock===20));
     const login=await req('/api/login','POST',{username:'TestAdmin',password:'test-only-password'});cookie=login.headers.get('set-cookie').split(';')[0];
+    assert.equal((await req('/api/admin/sync','POST',{})).status,503);
     for(const p of initial.products){const r=await buy(p.id,1);assert.equal(r.status,201);assert.equal(await stock(p.id),19);}
     const competing=await Promise.all([buy('cognac',19),buy('cognac',19,'iPhone 18 Pro')]);
     assert.deepEqual(competing.map(r=>r.status).sort(),[201,409]);

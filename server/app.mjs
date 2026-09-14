@@ -105,12 +105,12 @@ export function createApp(options = {}) {
   });
   const salt = randomBytes(32), passwordHash = scryptSync(config.password, salt, 64);
   const buckets = new Map();
-  let syncing = false;
+  let syncing = false, syncError = '';
   const googleReady = Boolean(config.googleUrl && config.googleSecret);
   // ponytail: a single SQLite process and one sync worker; move to a shared database before multi-instance deployment.
   async function syncOrders() {
     if (syncing || !googleReady) return;
-    syncing = true;
+    syncing = true; syncError = '';
     try {
       const rows = db.prepare('SELECT * FROM orders WHERE synced_revision < revision ORDER BY created LIMIT 20').all();
       for (const order of rows) {
@@ -120,9 +120,12 @@ export function createApp(options = {}) {
           const response = await fetch(config.googleUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ secret: config.googleSecret, action: 'upsert', order: safeOrder, slip }), signal: AbortSignal.timeout(25000) });
           const result = await response.json();
-          if (!response.ok || !result.ok) throw new Error('Sync rejected');
+          if (!response.ok || !result.ok) {
+            const messages = { unauthorized: 'รหัสเชื่อม Google ไม่ตรงกับ Apps Script', not_configured: 'Apps Script ยังไม่ได้ตั้ง secret', sync_failed: 'Google บันทึกไม่ได้ ตรวจสิทธิ์ชีตและโฟลเดอร์สลิปของบัญชีที่รัน Apps Script' };
+            throw Object.assign(new Error('Sync rejected'), { syncMessage: messages[result.error] || 'Google ปฏิเสธการส่งข้อมูล กรุณาตรวจ URL และการปรับใช้ Apps Script' });
+          }
           db.prepare('UPDATE orders SET synced_revision=?, drive_url=? WHERE id=?').run(order.revision, result.driveUrl || order.drive_url, order.id);
-        } catch { break; } // Preserve the pending revision for the next retry; never discard an order.
+        } catch (error) { syncError = error.syncMessage || 'ส่งข้อมูลไป Google ไม่สำเร็จ ระบบเก็บออเดอร์ไว้และจะลองส่งอีกครั้ง'; break; }
       }
     } finally { syncing = false; }
   }
@@ -226,7 +229,7 @@ export function createApp(options = {}) {
             coalesce(sum(CASE WHEN status='pending' THEN 1 ELSE 0 END),0) AS pending,
             coalesce(sum(CASE WHEN revision>synced_revision THEN 1 ELSE 0 END),0) AS unsynced FROM orders`).get();
           const demand = db.prepare(`SELECT product,model,sum(quantity) AS units,sum(CASE WHEN status='approved' THEN quantity ELSE 0 END) AS approved FROM orders WHERE status!='rejected' GROUP BY product,model ORDER BY units DESC`).all();
-          return send(200, { orders, count, page, totals, demand, inventory: catalogProducts(), settings: settings(), googleReady, sheetUrl: config.sheetUrl });
+          return send(200, { orders, count, page, totals, demand, inventory: catalogProducts(), settings: settings(), googleReady, syncError, sheetUrl: config.sheetUrl });
         }
         if (method === 'PUT' && route === '/api/admin/settings') {
           const input = await jsonBody(req);
@@ -253,7 +256,13 @@ export function createApp(options = {}) {
           res.setHeader('Content-Disposition', `${order.slip_type === 'application/pdf' ? 'attachment' : 'inline'}; filename="${slip[1]}.${order.slip_type.split('/')[1]}"`);
           return res.end(readFileSync(resolve(dir, 'slips', order.slip_path)));
         }
-        if (method === 'POST' && route === '/api/admin/sync') { await syncOrders(); return send(200, { ok: true, connected: googleReady }); }
+        if (method === 'POST' && route === '/api/admin/sync') {
+          if (!googleReady) fail(503, 'ยังไม่ได้ตั้ง GOOGLE_SCRIPT_URL และ GOOGLE_SYNC_SECRET บนเซิร์ฟเวอร์ร้าน');
+          await syncOrders();
+          if (syncError) fail(502, syncError);
+          const pending = db.prepare('SELECT count(*) AS count FROM orders WHERE synced_revision < revision').get().count;
+          return send(syncing ? 202 : 200, { ok: pending === 0, pending, syncing });
+        }
       }
       if (['GET', 'HEAD'].includes(method)) {
         const files = { '/': 'index.html', '/admin': 'admin.html', '/app.js': 'app.js', '/admin.js': 'admin.js', '/style.css': 'style.css', '/favicon.svg': 'favicon.svg', '/assets/classic.png': 'assets/classic.png', '/assets/texture.png': 'assets/texture.png', '/assets/everyday.png': 'assets/everyday.png' };
