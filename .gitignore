@@ -1,0 +1,15 @@
+node_modules/
+.local-tools/
+.env
+.env.*
+!.env.example
+data/
+.project-memory/
+graft/
+.sites-runtime/
+.DS_Store
+*.blend1
+*.log
+.playwright/
+.codex/config.toml
+__pycache__/

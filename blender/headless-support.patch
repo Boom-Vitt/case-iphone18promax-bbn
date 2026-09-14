@@ -1,0 +1,7 @@
+diff --git a/addon.py b/addon.py
+index 884340f..b5d9627 100644
+--- a/addon.py
++++ b/addon.py
+@@ -528 +528 @@ class BlenderMCPServer:
+-        if bpy.app.background:
++        if bpy.app.background and os.environ.get("BBN_MAIN_THREAD_DRIVER") != "1":
