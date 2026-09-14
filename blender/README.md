@@ -25,3 +25,7 @@ npm run blender:check
 เก็บโมเดลและ renders ใหม่ใต้ `blender/`; บันทึกฉากใน Blender ก่อนปิด การปิด process ไม่ได้บันทึกงานให้อัตโนมัติ ภาพอ้างอิงอยู่ `output/leather-cases/references/`; ต้องตรวจขนาด/ช่องกล้องจากตัวเครื่องจริงก่อนใช้ผลิต
 
 ตรวจจริงเมื่อ 2026-09-14: Blender 5.2.1 LTS, socket ตอบ path โปรเจกต์ถูกต้อง, MCP แสดง 28 tools และเรียกอ่าน scene สำเร็จ ข้อความเตือนว่าไม่มี addon ใน global addons directory เป็นผลจากการโหลดเฉพาะ process ตามที่ตั้งใจ
+
+## โมเดลโฆษณา
+
+ชุดโมเดลจริงที่สร้างผ่าน Blender MCP อยู่ใน [advertisement/README.md](advertisement/README.md) พร้อม .blend, GLB และภาพตัวอย่าง; การเรนเดอร์ MP4 หยุดตามคำขอให้อัปโหลดเฉพาะงานที่มี

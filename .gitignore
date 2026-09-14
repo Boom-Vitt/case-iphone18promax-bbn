@@ -13,3 +13,5 @@ graft/
 .playwright/
 .codex/config.toml
 __pycache__/
+blender/advertisement/*-log.txt
+blender/advertisement/frames/
