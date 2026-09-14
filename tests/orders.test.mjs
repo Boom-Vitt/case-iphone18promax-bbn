@@ -40,10 +40,11 @@ test('preorder lifecycle, private slips, validation, persistence, and retryable 
     const login=await request('/api/login','POST',{username:'TestAdmin',password:'test-only-password'});
     assert.equal(login.status,200); cookie=login.headers.get('set-cookie').split(';')[0];
     assert.match(login.headers.get('set-cookie'),/HttpOnly; SameSite=Strict/);
-    assert.equal((await request('/api/orders','POST',form())).status,409);
     const settings=(await (await request('/api/catalog')).json()).settings;
-    assert.equal(settings.price,1090); assert.equal(settings.shipping,0);
-    assert.equal((await request('/api/admin/settings','PUT',{...settings,open:true})).status,400);
+    assert.equal(settings.price,1090); assert.equal(settings.shipping,0); assert.equal(settings.open,true);
+    assert.equal((await request('/api/admin/settings','PUT',{...settings,open:false})).status,200);
+    assert.equal((await request('/api/orders','POST',form())).status,409);
+    assert.equal((await request('/api/admin/settings','PUT',{...settings,open:true})).status,200);
     assert.equal((await request('/api/admin/settings','PUT',{...settings,open:true,recipient:'TEST ONLY',shippingNote:'TEST ONLY',contact:'TEST ONLY'})).status,200);
     assert.equal((await request('/api/orders','POST',form({quotedTotal:'1'}))).status,409);
     assert.equal((await request('/api/orders','POST',form({},Buffer.from('<script>bad</script>'),'slip.png'))).status,400);
@@ -90,4 +91,43 @@ test('Apps Script refuses unauthenticated writes and escapes spreadsheet formula
   assert.equal(clientIp(request('203.0.113.4','198.51.100.7'),'loopback'),'203.0.113.4');
   assert.equal(clientIp(request('127.0.0.1','spoof, 198.51.100.7'),'loopback'),'198.51.100.7');
   assert.equal(clientIp(request('::1','invalid'),'loopback'),'::1');
+});
+
+test('20 per design: concurrent reservations, rejection release, reapproval guard, and restart preservation', async () => {
+  const dataDir=mkdtempSync(join(tmpdir(),'bbn-stock-'));
+  const origin='http://localhost:4320';
+  const options={dataDir,origin,username:'TestAdmin',password:'test-only-password',googleUrl:'',googleSecret:'',trustProxy:'loopback'};
+  let app=createApp(options),base,cookie='',serial=0;
+  const start=async()=>{app.server.listen(0,'127.0.0.1');await once(app.server,'listening');base=`http://127.0.0.1:${app.server.address().port}`;};
+  const req=(path,method='GET',body)=>fetch(base+path,{method,headers:{Origin:origin,'X-Requested-With':'BBN','X-Forwarded-For':`198.51.100.${++serial}`,Cookie:cookie,...(body && !(body instanceof FormData)?{'Content-Type':'application/json'}:{})},body:body instanceof FormData?body:body?JSON.stringify(body):undefined});
+  const buy=(product,quantity,model='iPhone 18 Pro Max')=>{
+    const form=new FormData();
+    for(const [k,v] of Object.entries({product,quantity,model,name:'Stock Test',phone:'0800000000',address:'TEST ONLY address no delivery',postal:'10100',consent:'yes',quotedTotal:1090*quantity}))form.set(k,String(v));
+    form.set('slip',new Blob([Buffer.from('89504e470d0a1a0a','hex'),String(serial)]),'slip.png');
+    return req('/api/orders','POST',form);
+  };
+  const catalog=async()=> (await (await req('/api/catalog')).json());
+  const stock=async id=>(await catalog()).products.find(p=>p.id===id).stock;
+  const review=(id,status,revision)=>req(`/api/admin/orders/${id}`,'PATCH',{status,revision,note:'Test review'});
+  try {
+    await start();
+    const initial=await catalog(); assert.equal(initial.products.length,12);assert.ok(initial.products.every(p=>p.stock===20));
+    const login=await req('/api/login','POST',{username:'TestAdmin',password:'test-only-password'});cookie=login.headers.get('set-cookie').split(';')[0];
+    for(const p of initial.products){const r=await buy(p.id,1);assert.equal(r.status,201);assert.equal(await stock(p.id),19);}
+    const competing=await Promise.all([buy('cognac',19),buy('cognac',19,'iPhone 18 Pro')]);
+    assert.deepEqual(competing.map(r=>r.status).sort(),[201,409]);
+    const order=await competing.find(r=>r.status===201).json();assert.equal(await stock('cognac'),0);
+    assert.equal((await review(order.id,'approved',1)).status,200);assert.equal(await stock('cognac'),0);
+    assert.equal((await review(order.id,'rejected',2)).status,200);assert.equal(await stock('cognac'),19);
+    assert.equal((await buy('cognac',19)).status,201);
+    assert.equal((await review(order.id,'approved',3)).status,409);assert.equal(await stock('cognac'),0);
+    assert.equal((await review(order.id,'pending',3)).status,409);
+    assert.equal(app.db.prepare('SELECT status,revision FROM orders WHERE id=?').get(order.id).revision,3);
+    assert.equal(app.db.prepare('SELECT count(*) AS n FROM orders').get().n,14);
+    const {readdirSync}=await import('node:fs');assert.equal(readdirSync(join(dataDir,'slips')).length,14);
+    await req('/api/admin/settings','PUT',{...initial.settings,open:false});
+    await new Promise(r=>app.server.close(r));app=createApp(options);await start();
+    assert.equal(await stock('cognac'),0);assert.equal((await catalog()).settings.open,false);
+    assert.equal((await buy('midnight',1)).status,409);
+  } finally {await new Promise(r=>app.server.close(r));rmSync(dataDir,{recursive:true,force:true});}
 });

@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "app.cjs",
   "engines": {"node": ">=24.0.0"},
   "scripts": {
-    "start": "node --env-file-if-exists=.env server/app.mjs",
+    "start": "node --env-file-if-exists=.env app.cjs",
     "dev": "node --env-file-if-exists=.env --watch server/app.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check server/app.mjs && node --check public/app.js && node --check public/admin.js && npm test",
+    "check": "node --check app.cjs && node --check server/app.mjs && node --check public/app.js && node --check public/admin.js && npm test",
     "blender:start": "python3 scripts/start_blender.py",
     "blender:check": "python3 scripts/check_blender.py"
   }

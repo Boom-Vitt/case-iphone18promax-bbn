@@ -10,6 +10,7 @@ async function load(){
   $('#orders').innerHTML=data.orders.map(o=>`<tr><td><b>${esc(o.id)}</b><small>${new Date(o.created).toLocaleString('th-TH')}</small></td><td>${esc(o.name)}<small>${esc(o.phone)}</small></td><td>${esc(names[o.product]||o.product)}<small>${esc(o.model)}</small></td><td>${o.quantity}</td><td>${money(o.total)}</td><td><span class="status ${o.status}">${labels[o.status]}</span></td><td><button data-review="${o.id}">ตรวจ / ดูสลิป</button></td></tr>`).join('');
   $('#empty').hidden=data.orders.length>0;$('#page-label').textContent=`หน้า ${page} / ${Math.max(1,Math.ceil(data.count/50))}`;$('#prev').disabled=page<=1;$('#next').disabled=page*50>=data.count;
   $('#demand').innerHTML=data.demand.length?data.demand.map(d=>`<div class="demand-row"><span>${esc(names[d.product]||d.product)}<small> · ${esc(d.model)}</small></span><b>${d.units} ชิ้น <small>(อนุมัติ ${d.approved})</small></b></div>`).join(''):'<p class="empty">เริ่มเห็นความต้องการได้เมื่อมีคำสั่งจอง</p>';
+  $('#inventory').innerHTML=data.inventory.map(p=>`<div class="demand-row"><span>${esc(p.name)}</span><b>เหลือ ${p.stock} / ${p.stockTotal} ชิ้น</b></div>`).join('');
   const f=$('#settings-form');for(const [k,v] of Object.entries(data.settings)){if(k==='open')f.elements[k].checked=v;else f.elements[k].value=v;}
   if(data.sheetUrl&&/^https:\/\/docs.google.com\/spreadsheets\//.test(data.sheetUrl)){$('#sheet-link').href=data.sheetUrl;$('#sheet-link').hidden=false;}
 }

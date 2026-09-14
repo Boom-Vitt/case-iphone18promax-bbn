@@ -12,21 +12,36 @@ function render() {
   const s = catalog.settings;
   $('#hero-price').textContent = s.price.toLocaleString('th-TH');
   $('#shipping-label').textContent = s.shipping ? 'ค่าส่ง ' + money(s.shipping) : 'ส่งฟรี';
-  $('#store-notice').textContent = s.open ? 'เปิดรับพรีออร์เดอร์ • ' + s.shippingNote : 'กำลังเตรียมเปิดรอบพรีออร์เดอร์ — เลือกชมดีไซน์ได้ก่อน';
-  $('#delivery-text').textContent = s.shippingNote || 'จะแจ้งกำหนดจัดส่งก่อนเปิดรับชำระเงิน';
+  $('#store-notice').textContent = s.open ? 'เปิดรับพรีออร์เดอร์ • สต็อกเริ่มต้นดีไซน์ละ 20 ชิ้น (รวม Pro / Pro Max)' : 'กำลังเตรียมเปิดรอบพรีออร์เดอร์ — เลือกชมดีไซน์ได้ก่อน';
+  $('#delivery-text').textContent = s.shippingNote || 'พรีออร์เดอร์: ยังไม่ระบุวันจัดส่ง';
   $('#contact-text').textContent = s.contact ? 'ติดต่อร้าน: ' + s.contact : '';
-  $('#products').innerHTML = catalog.products.filter(p => filter === 'all' || p.collection === filter).map((p, i) => `<article class="product-card"><div class="photo-wrap"><div class="product-photo ${p.collection} ${p.position}" role="img" aria-label="${esc(p.description)}"></div><span class="product-number">${String(catalog.products.indexOf(p)+1).padStart(2,'0')}</span></div><div class="product-meta"><div><p>${esc(p.collection.toUpperCase())}</p><h3>${esc(p.name)}</h3><span>${esc(p.description)}</span></div><button class="pick" data-product="${esc(p.id)}" aria-label="เลือก ${esc(p.name)}">↗</button></div><div class="product-bottom"><b>${money(s.price)}</b><span>${s.shipping ? 'ค่าส่ง '+money(s.shipping) : 'ส่งฟรี'}</span></div></article>`).join('');
+  $('#products').innerHTML = catalog.products.filter(p => filter === 'all' || p.collection === filter).map((p, i) => `<article class="product-card"><div class="photo-wrap"><div class="product-photo ${p.collection} ${p.position}" role="img" aria-label="${esc(p.description)}"></div><span class="product-number">${String(catalog.products.indexOf(p)+1).padStart(2,'0')}</span></div><div class="product-meta"><div><p>${esc(p.collection.toUpperCase())}</p><h3>${esc(p.name)}</h3><span>${esc(p.description)}</span></div><button class="pick" data-product="${esc(p.id)}" aria-label="สั่งจอง ${esc(p.name)}" ${!s.open || !p.stock ? 'disabled' : ''}>↗</button></div><div class="product-bottom"><b>${money(s.price)}</b><span>${s.shipping ? 'ค่าส่ง '+money(s.shipping) : 'ส่งฟรี'}</span></div><p class="stock-label">${p.stock ? `เหลือ ${p.stock} ชิ้น` : 'หมดรอบนี้'}</p></article>`).join('');
 }
 function total() { const s = catalog.settings; const n = Number($('#order-form [name=quantity]').value); return s.price*n+s.shipping; }
-$('#products').addEventListener('click', e => {
+async function refreshCatalog() { catalog = await api('/api/catalog'); render(); }
+function checkoutStock() {
+  const qty = $('#order-form [name=quantity]'), previous = Number(qty.value) || 1;
+  qty.innerHTML = Array.from({length: Math.min(20,selected.stock)},(_,i)=>`<option>${i+1}</option>`).join('');
+  if (selected.stock) qty.value = String(Math.min(previous,selected.stock));
+  $('#checkout-stock').textContent = `เหลือ ${selected.stock} ชิ้น • สต็อกรวม Pro / Pro Max • กันสต็อกเมื่อส่งคำสั่งจองสำเร็จ`;
+  $('#order-form [type=submit]').disabled = !selected.stock || !catalog.settings.open;
+  $('#order-total').textContent = money(total());
+}
+$('#products').addEventListener('click', async e => {
   const button = e.target.closest('[data-product]'); if (!button) return;
-  if (!catalog.settings.open) return toast('ยังไม่เปิดรับชำระเงิน กำหนดเปิดรอบจะแจ้งในหน้านี้');
-  selected = catalog.products.find(p => p.id === button.dataset.product);
-  $('#order-form').reset(); $('#order-form [name=product]').value = selected.id;
-  $('#selected-title').textContent = selected.name; $('#order-total').textContent = money(total());
-  $('#pay-number').textContent = catalog.settings.promptpay; $('#pay-recipient').textContent = catalog.settings.recipient;
-  $('#checkout-shipping').textContent = 'กำหนดส่ง: ' + catalog.settings.shippingNote;
-  $('#form-error').textContent = ''; $('#checkout-content').hidden = false; $('#order-success').hidden = true; $('#checkout').showModal();
+  button.disabled = true;
+  try {
+    await refreshCatalog();
+    if (!catalog.settings.open) return toast('ร้านปิดรับพรีออร์เดอร์ชั่วคราว');
+    selected = catalog.products.find(p => p.id === button.dataset.product);
+    if (!selected.stock) return toast('ดีไซน์นี้หมดรอบแล้ว กรุณาเลือกแบบอื่น');
+    $('#order-form').reset(); $('#order-form [name=product]').value = selected.id;
+    $('#selected-title').textContent = selected.name; checkoutStock();
+    $('#pay-number').textContent = catalog.settings.promptpay;
+    $('#pay-recipient').textContent = catalog.settings.recipient || 'ตรวจสอบชื่อผู้รับในแอปธนาคาร';
+    $('#checkout-shipping').textContent = catalog.settings.shippingNote || 'พรีออร์เดอร์: ยังไม่ระบุวันจัดส่ง';
+    $('#form-error').textContent = ''; $('#checkout-content').hidden = false; $('#order-success').hidden = true; $('#checkout').showModal();
+  } catch(error) { toast(error.message); } finally { button.disabled = false; }
 });
 $('.filters').addEventListener('click', e => { const b=e.target.closest('[data-filter]'); if (!b) return; filter=b.dataset.filter; document.querySelectorAll('[data-filter]').forEach(x=>{x.classList.toggle('active',x===b);x.setAttribute('aria-pressed',String(x===b));}); render(); });
 $('#order-form [name=quantity]').addEventListener('change',()=>$('#order-total').textContent=money(total()));
@@ -36,9 +51,9 @@ $('#order-form').addEventListener('submit',async e=>{
   e.preventDefault(); const button=e.target.querySelector('[type=submit]'); button.disabled=true; button.textContent='กำลังส่งข้อมูล…'; $('#form-error').textContent='';
   try { const form=new FormData(e.target); if(form.get('slip').size>8*1024*1024)throw new Error('ไฟล์ต้องไม่เกิน 8 MB'); form.set('quotedTotal',String(total()));
     receipt=await api('/api/orders',{method:'POST',body:form}); $('#checkout-content').hidden=true; $('#order-success').hidden=false; $('#success-id').textContent=receipt.id; $('#success-token').value=receipt.token;
-  } catch(error){$('#form-error').textContent=error.message;} finally{button.disabled=false;button.textContent='ส่งคำสั่งจองและสลิป';}
+  } catch(error){$('#form-error').textContent=error.message;} finally{button.textContent='ส่งคำสั่งจองและสลิป';try{await refreshCatalog();selected=catalog.products.find(p=>p.id===selected.id);checkoutStock();}catch{button.disabled=false;}}
 });
 $('#copy-order').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(`${receipt.id}\nรหัสติดตาม: ${receipt.token}\n${location.origin}`);toast('คัดลอกข้อมูลออเดอร์แล้ว');}catch{toast('กรุณาคัดลอกเลขออเดอร์และรหัสที่แสดง');}});
 $('#track-open').addEventListener('click',()=>$('#tracking').showModal());
 $('#tracking-form').addEventListener('submit',async e=>{e.preventDefault();const b=e.target.querySelector('button');b.disabled=true;try{const r=await api('/api/order-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(e.target)))});$('#tracking-result').innerHTML=`<div class="payment-box"><span class="status ${r.status}">${esc(statuses[r.status])}</span><h3>${esc(r.id)}</h3><p>${esc(r.model)} · ${esc(r.product)} × ${r.quantity}</p><b>${money(r.total)}</b><p>${esc(r.note)}</p></div>`;}catch(error){$('#tracking-result').textContent=error.message;}finally{b.disabled=false;}});
-api('/api/catalog').then(data=>{catalog=data;render();}).catch(()=>{$('#store-notice').textContent='โหลดข้อมูลร้านไม่สำเร็จ กรุณารีเฟรชเพื่อลองอีกครั้ง';});
+refreshCatalog().catch(()=>{$('#store-notice').textContent='โหลดข้อมูลร้านไม่สำเร็จ กรุณารีเฟรชเพื่อลองอีกครั้ง';});

@@ -71,10 +71,38 @@ export function createApp(options = {}) {
       slip_hash TEXT NOT NULL UNIQUE, updated TEXT NOT NULL, reviewed_by TEXT NOT NULL DEFAULT '',
       revision INTEGER NOT NULL DEFAULT 1, synced_revision INTEGER NOT NULL DEFAULT 0,
       drive_url TEXT NOT NULL DEFAULT '');
-    CREATE INDEX IF NOT EXISTS orders_created ON orders(created);`);
+    CREATE INDEX IF NOT EXISTS orders_created ON orders(created);
+    CREATE TABLE IF NOT EXISTS inventory (product TEXT PRIMARY KEY, total INTEGER NOT NULL CHECK(total>=0));
+    CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY);
+    CREATE INDEX IF NOT EXISTS orders_product_status ON orders(product,status);
+    CREATE TRIGGER IF NOT EXISTS stock_insert BEFORE INSERT ON orders WHEN NEW.status!='rejected'
+    BEGIN
+      SELECT CASE WHEN NEW.quantity + coalesce((SELECT sum(quantity) FROM orders WHERE product=NEW.product AND status!='rejected'),0)
+        > coalesce((SELECT total FROM inventory WHERE product=NEW.product),0) THEN RAISE(ABORT,'out_of_stock') END;
+    END;
+    CREATE TRIGGER IF NOT EXISTS stock_update BEFORE UPDATE OF product,quantity,status ON orders
+    WHEN NEW.status!='rejected' AND (OLD.status='rejected' OR NEW.product!=OLD.product OR NEW.quantity>OLD.quantity)
+    BEGIN
+      SELECT CASE WHEN NEW.quantity + coalesce((SELECT sum(quantity) FROM orders WHERE product=NEW.product AND status!='rejected' AND id!=OLD.id),0)
+        > coalesce((SELECT total FROM inventory WHERE product=NEW.product),0) THEN RAISE(ABORT,'out_of_stock') END;
+    END;`);
   const initial = { price: 1090, shipping: 0, promptpay: '0899999999', recipient: '', shippingNote: '', contact: '', open: false };
   db.prepare('INSERT OR IGNORE INTO settings VALUES (1, ?)').run(JSON.stringify(initial));
   const settings = () => JSON.parse(db.prepare('SELECT value FROM settings WHERE id=1').get().value);
+  // Initialize this preorder batch once; restarts preserve stock and later admin closures.
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    for (const p of products) db.prepare('INSERT OR IGNORE INTO inventory VALUES (?,20)').run(p.id);
+    if (!db.prepare("SELECT name FROM migrations WHERE name='open-stock-20'").get()) {
+      db.prepare('UPDATE settings SET value=? WHERE id=1').run(JSON.stringify({ ...settings(), open: true }));
+      db.exec("INSERT INTO migrations VALUES ('open-stock-20')");
+    }
+    db.exec('COMMIT');
+  } catch (error) { db.exec('ROLLBACK'); db.close(); throw error; }
+  const catalogProducts = () => products.map(p => {
+    const { total, reserved } = db.prepare(`SELECT total, coalesce((SELECT sum(quantity) FROM orders WHERE product=? AND status!='rejected'),0) AS reserved FROM inventory WHERE product=?`).get(p.id,p.id);
+    return { ...p, stock: Math.max(0,total-reserved), stockTotal: total };
+  });
   const salt = randomBytes(32), passwordHash = scryptSync(config.password, salt, 64);
   const buckets = new Map();
   let syncing = false;
@@ -135,7 +163,7 @@ export function createApp(options = {}) {
       const url = new URL(req.url, config.origin), route = url.pathname, method = req.method;
       if (route.startsWith('/api/')) limit(req, 'api', 180, 60);
       if (!['GET', 'HEAD'].includes(method) && (req.headers.origin !== config.origin || req.headers['x-requested-with'] !== 'BBN')) fail(403, 'คำขอไม่ได้มาจากหน้าร้านนี้');
-      if (method === 'GET' && route === '/api/catalog') return send(200, { products, settings: settings() });
+      if (method === 'GET' && route === '/api/catalog') return send(200, { products: catalogProducts(), settings: settings() });
       if (method === 'POST' && route === '/api/login') {
         limit(req, 'login', 5, 300);
         const input = await jsonBody(req);
@@ -159,7 +187,7 @@ export function createApp(options = {}) {
         const product = text(form.get('product'), 'แบบเคส', 1, 30);
         if (!products.some(p => p.id === product)) fail(400, 'ไม่พบแบบเคสนี้');
         const model = form.get('model'); if (!['iPhone 18 Pro', 'iPhone 18 Pro Max'].includes(model)) fail(400, 'รุ่นโทรศัพท์ไม่ถูกต้อง');
-        const quantity = integer(Number(form.get('quantity')), 1, 10, 'จำนวน');
+        const quantity = integer(Number(form.get('quantity')), 1, 20, 'จำนวน');
         const name = text(form.get('name'), 'ชื่อผู้รับ', 2, 120);
         const phone = text(form.get('phone'), 'เบอร์โทร', 9, 16); if (!/^0\d{8,9}$/.test(phone.replace(/[- ]/g, ''))) fail(400, 'เบอร์โทรไม่ถูกต้อง');
         const address = text(form.get('address'), 'ที่อยู่', 10, 1000);
@@ -198,7 +226,7 @@ export function createApp(options = {}) {
             coalesce(sum(CASE WHEN status='pending' THEN 1 ELSE 0 END),0) AS pending,
             coalesce(sum(CASE WHEN revision>synced_revision THEN 1 ELSE 0 END),0) AS unsynced FROM orders`).get();
           const demand = db.prepare(`SELECT product,model,sum(quantity) AS units,sum(CASE WHEN status='approved' THEN quantity ELSE 0 END) AS approved FROM orders WHERE status!='rejected' GROUP BY product,model ORDER BY units DESC`).all();
-          return send(200, { orders, count, page, totals, demand, settings: settings(), googleReady, sheetUrl: config.sheetUrl });
+          return send(200, { orders, count, page, totals, demand, inventory: catalogProducts(), settings: settings(), googleReady, sheetUrl: config.sheetUrl });
         }
         if (method === 'PUT' && route === '/api/admin/settings') {
           const input = await jsonBody(req);
@@ -206,7 +234,6 @@ export function createApp(options = {}) {
             promptpay: text(input.promptpay, 'พร้อมเพย์', 10, 13), recipient: text(input.recipient, 'ชื่อผู้รับเงิน', 0, 120),
             shippingNote: text(input.shippingNote, 'กำหนดส่ง', 0, 500), contact: text(input.contact, 'ช่องทางติดต่อ', 0, 300), open: input.open === true };
           if (!/^(0\d{9}|\d{13})$/.test(next.promptpay)) fail(400, 'พร้อมเพย์ต้องเป็นเบอร์ 10 หลักหรือเลขประจำตัว 13 หลัก');
-          if (next.open && (!next.recipient || !next.shippingNote || !next.contact)) fail(400, 'กรอกชื่อบัญชี กำหนดส่ง และช่องทางติดต่อก่อนเปิดร้าน');
           db.prepare('UPDATE settings SET value=? WHERE id=1').run(JSON.stringify(next)); return send(200, next);
         }
         const review = /^\/api\/admin\/orders\/(BBN-[A-F0-9]{12})$/.exec(route);
@@ -236,14 +263,19 @@ export function createApp(options = {}) {
         return res.end(method === 'HEAD' ? undefined : readFileSync(resolve(ROOT, 'public', filename)));
       }
       fail(404, 'ไม่พบรายการ');
-    } catch (error) { if (!res.headersSent) send(error.status || 500, { error: error.status ? error.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่' }); else res.end(); }
+    } catch (error) {
+      if (error.message === 'out_of_stock') { error.status = 409; error.message = 'สต็อกดีไซน์นี้ไม่พอ กรุณาเลือกจำนวนใหม่หรือติดต่อร้านหากโอนแล้ว'; }
+      if (!res.headersSent) send(error.status || 500, { error: error.status ? error.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่' }); else res.end();
+    }
   });
   server.requestTimeout = 30000;
   server.headersTimeout = 10000;
   server.on('close', () => { clearInterval(timer); db.close(); });
   return { server, db, syncOrders, isSyncing: () => syncing };
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+export function startApp() {
   const app = createApp();
   app.server.listen(Number(process.env.PORT || 3018), process.env.HOST || '127.0.0.1', () => console.log(`BBN Case ready at ${process.env.PUBLIC_ORIGIN || 'http://localhost:3018'}`));
+  return app;
 }
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) startApp();
