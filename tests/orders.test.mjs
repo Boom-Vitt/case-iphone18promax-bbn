@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { once } from 'node:events';
 import http from 'node:http';
 import vm from 'node:vm';
-import { createApp } from '../server/app.mjs';
+import { createApp, clientIp } from '../server/app.mjs';
 
 test('preorder lifecycle, private slips, validation, persistence, and retryable Google sync', async () => {
   const dataDir = mkdtempSync(join(tmpdir(), 'bbn-test-'));
@@ -82,4 +82,12 @@ test('Apps Script refuses unauthenticated writes and escapes spreadsheet formula
   assert.equal(ctx.doPost({postData:{contents:JSON.stringify({secret:'x'.repeat(64),action:'upsert',order:{id:'bad'}})}}).error,'invalid_order');
   assert.equal(ctx.safeCell('=IMPORTXML("bad")'),"'=IMPORTXML(\"bad\")");
   assert.equal(ctx.safeCell('0800000000'),'0800000000');
+});
+
+ test('proxy IP trust is opt-in, loopback-only, and ignores spoofed prefixes', () => {
+  const request = (remote, forwarded) => ({socket:{remoteAddress:remote},headers:{'x-forwarded-for':forwarded}});
+  assert.equal(clientIp(request('127.0.0.1','198.51.100.7'),''),'127.0.0.1');
+  assert.equal(clientIp(request('203.0.113.4','198.51.100.7'),'loopback'),'203.0.113.4');
+  assert.equal(clientIp(request('127.0.0.1','spoof, 198.51.100.7'),'loopback'),'198.51.100.7');
+  assert.equal(clientIp(request('::1','invalid'),'loopback'),'::1');
 });

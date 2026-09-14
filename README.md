@@ -43,4 +43,4 @@ npm run blender:check
 
 ชุดทดสอบใช้ฐานข้อมูลและข้อมูลลูกค้าสมมติใน temporary directory ตรวจ login, CSRF, สลิปส่วนตัว/ซ้ำ, ยอดราคา, สถานะ/การชนกันของ revision, persistence และ Google retry ด้วย endpoint จำลอง ไม่มีการส่งออเดอร์ทดสอบไป Google จริง
 
-ข้อจำกัดรุ่นเริ่มต้น: rate limit อิง IP ของ socket หากวางหลัง reverse proxy ทุกคำขออาจใช้โควตาร่วมกัน ต้องตั้ง client-IP trust เฉพาะ proxy ที่ควบคุมได้และทดสอบก่อนรับทราฟฟิกจริง
+Rate limit ใช้ IP ของ socket ตามค่าเริ่มต้น หากใช้ reverse proxy บนเครื่องเดียวกัน ให้ตั้ง `TRUST_PROXY=loopback` และให้ proxy เขียน `X-Forwarded-For` ด้วย IP ลูกค้าจริง (เช่น Nginx `proxy_set_header X-Forwarded-For $remote_addr;`) จำกัดพอร์ต Node ให้รับเฉพาะ proxy ในโหมดนี้ ไม่เชื่อ header จากการเชื่อมต่อภายนอกโดยตรง สำหรับ proxy คนละเครื่องให้คงค่า trust ว่างและเพิ่มการตรวจขอบเขต proxy ก่อน deploy

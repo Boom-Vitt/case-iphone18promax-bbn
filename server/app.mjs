@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { isIP } from 'node:net';
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
@@ -39,10 +40,20 @@ export function fileType(bytes, name) {
   fail(400, 'รองรับเฉพาะไฟล์ JPG, PNG หรือ PDF ที่ถูกต้อง');
 }
 
+export function clientIp(req, trustProxy) {
+  const remote = req.socket.remoteAddress;
+  if (trustProxy === 'loopback' && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote)) {
+    const forwarded = req.headers['x-forwarded-for']?.split(',').at(-1).trim();
+    if (forwarded && isIP(forwarded)) return forwarded;
+  }
+  return remote;
+}
+
 export function createApp(options = {}) {
   const config = { dataDir: process.env.DATA_DIR || './data', username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD,
     origin: process.env.PUBLIC_ORIGIN || 'http://localhost:3018', secure: process.env.COOKIE_SECURE === 'true',
-    googleUrl: process.env.GOOGLE_SCRIPT_URL || '', googleSecret: process.env.GOOGLE_SYNC_SECRET || '', sheetUrl: process.env.GOOGLE_SHEET_URL || '', ...options };
+    trustProxy: process.env.TRUST_PROXY || '', googleUrl: process.env.GOOGLE_SCRIPT_URL || '', googleSecret: process.env.GOOGLE_SYNC_SECRET || '', sheetUrl: process.env.GOOGLE_SHEET_URL || '', ...options };
+  if (!['', 'loopback'].includes(config.trustProxy)) throw new Error('TRUST_PROXY must be empty or loopback');
   if (!config.username || !config.password) throw new Error('Set ADMIN_USERNAME and ADMIN_PASSWORD in .env');
   if (!/^https?:\/\//.test(config.origin) || new URL(config.origin).origin !== config.origin) throw new Error('PUBLIC_ORIGIN must be an exact origin without trailing slash');
   if (new URL(config.origin).protocol === 'https:' && !config.secure) throw new Error('HTTPS requires COOKIE_SECURE=true');
@@ -97,7 +108,7 @@ export function createApp(options = {}) {
     return token;
   };
   function limit(req, route, count, seconds) {
-    const key = `${route}:${req.socket.remoteAddress}`; // Never trust arbitrary X-Forwarded-For headers.
+    const key = `${route}:${clientIp(req, config.trustProxy)}`; // Forwarded IPs are accepted only from an explicitly trusted local proxy.
     let b = buckets.get(key);
     if (!b || b.until < Date.now()) { b = { count: 0, until: Date.now() + seconds * 1000 }; buckets.set(key, b); }
     if (++b.count > count) fail(429, 'ทำรายการถี่เกินไป กรุณารอสักครู่');
