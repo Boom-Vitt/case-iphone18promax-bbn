@@ -1,3 +1,15 @@
+<!-- BBN:HEADER:START -->
+<div align="center">
+
+<img src=".github/brand/banner.svg" width="100%" alt="BBN Case · iPhone 18 — Thai preorder store for iPhone 18 leather cases" />
+
+<a href="https://github.com/Boom-Vitt/case-iphone18promax-bbn/stargazers"><img src="https://img.shields.io/github/stars/Boom-Vitt/case-iphone18promax-bbn?style=flat-square&color=14b8a6&labelColor=0b1220" alt="stars" /></a>
+<a href="https://github.com/Boom-Vitt/case-iphone18promax-bbn/commits/main"><img src="https://img.shields.io/github/last-commit/Boom-Vitt/case-iphone18promax-bbn?style=flat-square&color=14b8a6&labelColor=0b1220" alt="last commit" /></a>
+<a href="https://github.com/Boom-Vitt"><img src="https://img.shields.io/badge/by-BoomBigNose-14b8a6?style=flat-square&labelColor=0b1220" alt="by BoomBigNose" /></a>
+
+</div>
+<!-- BBN:HEADER:END -->
+
 # BBN CASE — iPhone 18 leather preorder
 
 หน้าร้านภาษาไทยสำหรับเคสหนัง 12 ดีไซน์ iPhone 18 Pro / Pro Max ราคาเริ่มต้น 1,090 บาท ส่งฟรี พร้อมรับสลิปและหลังบ้านอนุมัติการโอน โค้ดใช้ Node.js 24 และ SQLite ในตัว ไม่มี runtime npm dependencies
@@ -54,3 +66,15 @@ npm run blender:check
 ชุดทดสอบใช้ฐานข้อมูลและข้อมูลลูกค้าสมมติใน temporary directory ตรวจ login, CSRF, สลิปส่วนตัว/ซ้ำ, ยอดราคา, สถานะ/การชนกันของ revision, persistence สต็อกร่วมสองรุ่น/สั่งพร้อมกัน/คืนสต็อก/ไม่เติมซ้ำหลังรีสตาร์ต และ Google retry ด้วย endpoint จำลอง ไม่มีการส่งออเดอร์ทดสอบไป Google จริง
 
 Rate limit ใช้ IP ของ socket ตามค่าเริ่มต้น หากใช้ reverse proxy บนเครื่องเดียวกัน ให้ตั้ง `TRUST_PROXY=loopback` และให้ proxy เขียน `X-Forwarded-For` ด้วย IP ลูกค้าจริง (เช่น Nginx `proxy_set_header X-Forwarded-For $remote_addr;`) จำกัดพอร์ต Node ให้รับเฉพาะ proxy ในโหมดนี้ ไม่เชื่อ header จากการเชื่อมต่อภายนอกโดยตรง สำหรับ proxy คนละเครื่องให้คงค่า trust ว่างและเพิ่มการตรวจขอบเขต proxy ก่อน deploy
+
+<!-- BBN:FOOTER:START -->
+---
+
+<div align="center">
+
+**สร้างโดย [BoomBigNose](https://github.com/Boom-Vitt)** · [Kruoop.com](https://kruoop.com) แหล่งเรียน AI + คอมมูนิตี้ · [Seeneo.ai](https://seeneo.ai) · [YouTube 220K](https://www.youtube.com/@BoomBigNose)
+
+<sub>ถ้าโปรเจกต์นี้มีประโยชน์ กด ⭐ ให้กำลังใจกันได้เลย</sub>
+
+</div>
+<!-- BBN:FOOTER:END -->
